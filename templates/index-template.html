@@ -94,6 +94,12 @@
                 <ul id="info-version-to"></ul>
             </div>
 
+            <div id="info-useful-links-section">
+                <h5 class="card-title">Useful Links</h5>
+                <ul id="info-useful-links"></ul>
+            </div>
+
+
         </div>
     </div>
 </aside>
@@ -112,7 +118,7 @@
 <script type="text/javascript">
 
     const DEFAULT_STREAM = "stable-4.5";
-    
+    const OPENSHIFT_CLI_PUB_MIRROR = "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/";
     let network;
     let network_data;
     let current_channel;
@@ -219,7 +225,6 @@
                 })
                 .sort(semver_compare);
         }
-
         console.log("Selected Node: ", node);
         console.log(from_versions);
         console.log(to_versions);
@@ -300,6 +305,7 @@
             $("#info-value").text(current_channel);
             $("#info-version-from-section").hide();
             $("#info-version-to-section").hide();
+            $("#info-useful-links-section").hide();
             $("#errata-link-section").hide();
             return;
         }
@@ -307,6 +313,20 @@
         $("#info").show();
         $("#info-type").text(type);
         $("#info-value").text(value);
+
+        if(value !== undefined && value.length>0) {
+            // create links
+            let l = $("#info-useful-links");
+            l.empty();
+            l.append($("<li><a href=" + OPENSHIFT_CLI_PUB_MIRROR + value + "/openshift-client-linux.tar.gz>oc (x86_64 Linux)</a></li>"));
+            l.append($("<li><a href=" + OPENSHIFT_CLI_PUB_MIRROR + value + "/openshift-client-mac.tar.gz>oc (OSX)</a></li>"));
+            l.append($("<li><a href=" + OPENSHIFT_CLI_PUB_MIRROR + value + "/openshift-client-windows.zip>oc (Windows)</a></li>"));
+            l.append($("<li><a href=" + OPENSHIFT_CLI_PUB_MIRROR + value + "/openshift-install-linux.tar.gz>openshift-install (x86_64 Linux)</a></li>"));
+            l.append($("<li><a href=" + OPENSHIFT_CLI_PUB_MIRROR + value + "/openshift-install-mac.tar.gz>openshift-install (OSX)</a></li>"));
+            $("#info-useful-links-section").show();
+        } else {
+            $("#info-useful-links-section").hide();
+        }
 
         if(from !== undefined && from.length>0) {
             let l = $("#info-version-from");
@@ -357,7 +377,25 @@
                     let nodes = [];
                     let edges = [];
 
+                    // Clone array (if the original one is modified the graph will be broken) 
+                    let nodes_sorted = data.nodes.slice();
+                    let latest_version = "";
+                    // Order the new array by version and don't order hotfix releases
+                    if (nodes_sorted.length > 0) {
+                        nodes_sorted.sort((a,b)=> { 
+                        if(a.version.includes("hotfix")) return -1;
+                            return semver_compare(a.version, b.version);
+                        });
+                        // Get latest version from new array
+                        latest_version = nodes_sorted[nodes_sorted.length - 1].version;
+                    }
                     for (let i = 0; i < data.nodes.length; i++) {
+                        let background_color = "#CCCCCC";
+                        let border_color = "#BBBBBB";
+                        
+                        if (data.nodes[i].version == latest_version) {
+                            background_color = "#99CCFF";
+                        }
                         let node = data.nodes[i];
                         nodes.push({
                             id: "" + i,
@@ -366,7 +404,7 @@
                                 errata: node.metadata.url,
                             },
                             color: {
-                                background: "#CCCCCC",
+                                background: background_color,
                                 border: "#BBBBBB",
                             }
                         });
