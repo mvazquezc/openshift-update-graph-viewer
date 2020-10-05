@@ -25,9 +25,12 @@ func ReturnIndex(w http.ResponseWriter, r *http.Request) {
 
 // ReturnOpenShiftChannels gets the channel list from GitHub and returns it as json
 func ReturnOpenShiftChannels(w http.ResponseWriter, r *http.Request) {
-	client := &http.Client{}
+        tr := &http.Transport{
+        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	req, _ := http.NewRequest("GET", graphDataGitHubUrl, nil)
-	
+
 	res, err := client.Do(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -51,18 +54,17 @@ func ReturnOpenShiftChannels(w http.ResponseWriter, r *http.Request) {
 // ReturnCincinnatiOutput gets the update graph from the cincinnati server + channel specified
 func ReturnCincinnatiOutput(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-		
+
 	cincinnatiChannel := vars["channel"]
 	cincinnatiApiUrl := vars["api"]
 	if strings.HasSuffix(cincinnatiApiUrl, "/") {
-		cincinnatiApiUrl = strings.TrimSuffix(cincinnatiApiUrl, "/") 
+		cincinnatiApiUrl = strings.TrimSuffix(cincinnatiApiUrl, "/")
 	}
-	cincinnatiUrl := "https://" + cincinnatiApiUrl  + "/api/upgrades_info/v1/graph?channel=" + cincinnatiChannel	
-	
+	cincinnatiUrl := "https://" + cincinnatiApiUrl  + "/api/upgrades_info/v1/graph?channel=" + cincinnatiChannel
+
 	tr := &http.Transport{
         TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
     }
-	
 	client := &http.Client{Transport: tr}
 	req, _ := http.NewRequest("GET", cincinnatiUrl, nil)
 	req.Header.Add("Accept", "application/json")
@@ -85,7 +87,6 @@ func ReturnCincinnatiOutput(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
 }
 
 //getEnv returns the value for a given Env Var
@@ -101,7 +102,6 @@ func main() {
 	log.Println("Starting OpenShift Update Graph", version)
 	log.Println("Listening on port", port)
 	router := mux.NewRouter()
-	
 	router.HandleFunc("/", ReturnIndex).Methods("GET")
 	router.HandleFunc("/channels", ReturnOpenShiftChannels).Methods("GET")
 	router.HandleFunc("/cincinnati/{channel}/{api}", ReturnCincinnatiOutput).Methods("GET")
