@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title>OpenShift Update Graph</title>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+
+    <style>
+        html {
+            position: relative;
+            min-height: 100%;
+        }
+        main {
+            padding-top: 60px;
+        }
+        body {
+            margin-bottom: 60px;
+        }
+        .footer {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 60px;
+            line-height: 60px;
+            background-color: #f5f5f5;
+        }
+        .failure {
+            position: absolute;
+            top: calc(60px + 1rem);
+            right: 2rem;
+        }
+        #updates {
+            height: calc(100vh - 120px);
+        }
+        #graph {
+            height: 100%;
+        }
+        #info {
+            position: absolute;
+            right: 1rem;
+            top: 5rem;
+        }
+    </style>
+
+</head>
+
+<body>
+
+<nav class="navbar navbar-light bg-light fixed-top">
+    <span class="navbar-brand">OpenShift Update Graph</span>
+    <form class="form-inline">
+        <input id="graph-api" placeholder="Cincinnati URL" class="form-control" value="api.openshift.com" size="30"> <button id="api-button" class="form-control">Change API Endpoint</button>
+        <select id="streams" class="form-control"></select>
+    </form>
+</nav>
+
+<main role="main">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col">
+                <div id="updates">
+                    <div id="graph"></div>
+                    <div style="display: none; position: absolute; top: 0; right: 0; height: 5rem; width: 100%;" id="progress">
+                        <div class="progress">
+                            <div id="progress-bar" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<aside id="info" style="display: none;">
+    <div class="card" style="width: 18rem;">
+        <h5 class="card-header"><span id="info-value"></span> <span id="info-type" class="badge badge-secondary"></span>
+            <span id="errata-link-section" class="float-right">
+                <a href="#" class="card-link" target="_blank" id="errata-link">Errata</a>
+            </span>
+        </h5>
+        <div class="card-body">
+
+            <div id="info-version-from-section">
+                <h5 class="card-title">From</h5>
+                <ul id="info-version-from"></ul>
+            </div>
+
+            <div id="info-version-to-section">
+                <h5 class="card-title">To</h5>
+                <ul id="info-version-to"></ul>
+            </div>
+
+        </div>
+    </div>
+</aside>
+
+<footer class="footer">
+    <div class="container-fluid">
+        <span class="text-muted">Based on the work from @ctron: <a href="https://github.com/ctron/openshift-update-graph" target="_blank">ctron/openshift-update-graph</a></span>
+    </div>
+</footer>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<script type="text/javascript">
+
+    const DEFAULT_STREAM = "stable-4.5";
+    
+    let network;
+    let network_data;
+    let current_channel;
+
+    function failure(msg) {
+        console.log("Failure:", msg);
+
+        let t = $('<div class="mt-3 failure alert alert-danger alert-dismissible fade show" role="alert">' +
+                '<strong>Failure!</strong> <span class="msg"></span>' +
+                '  <button type="button" class="close" data-dismiss="alert" aria-label="Close">\n' +
+                '    <span aria-hidden="true">&times;</span>\n' +
+                '  </button>'+
+                '</div>');
+
+        t.find(".msg").text(msg);
+
+        $("main").append(t);
+        t.alert();
+    }
+
+    function update_data(nodes, edges) {
+
+        if (network) {
+            network.destroy()
+        }
+        let container = document.getElementById('graph');
+        let data = {
+            nodes: nodes,
+            edges: edges
+        };
+        let options = {
+            physics: {
+                barnesHut: {
+                    damping: 0.5,
+                    springLength: 150,
+                },
+            },
+        };
+        network_data = data;
+        network = new vis.Network(container, data, options);
+        network.on("stabilizationProgress", function(params) {
+            let p = Math.trunc((params.iterations/params.total * 100.0)) + "%";
+            $("#progress-bar").width(p);
+        });
+        network.once("stabilizationIterationsDone", function() {
+            $("#progress").hide();
+        });
+        network.on("selectNode", function(){
+            update_selection();
+        });
+        network.on("deselectNode", function(){
+            update_selection();
+        });
+    }
+
+    function semver_compare(a,b) {
+        let av = a.split(".");
+        let bv = b.split(".");
+
+        for (let i=0; i< Math.min(av.length, bv.length); i++) {
+            let ac = av[i];
+            let bc = bv[i];
+            let r = ac-bc;
+            if (r !== 0) {
+                return r;
+            }
+        }
+        return 0; // equal
+    }
+
+    function update_selection() {
+        let selected_nodes = network.getSelectedNodes();
+        let node;
+        if (selected_nodes.length > 0) {
+            node = selected_nodes[0];
+        }
+
+        console.log("Selected ID: ", node);
+
+        let from_versions;
+        let to_versions;
+
+        if (node !== undefined){
+            // map from id to object
+            node = network_data.nodes.get(node);
+
+            to_versions = network_data.edges.get({
+                filter: function(item) {
+                    return item.from === node.id;
+                }
+            })
+                .map(function(o){
+                    return network_data.nodes.get(o.to).label;
+                })
+                .sort(semver_compare);
+
+            from_versions = network_data.edges.get({
+                filter: function(item) {
+                    return item.to === node.id;
+                }
+            })
+                .map(function(o){
+                    return network_data.nodes.get(o.from).label;
+                })
+                .sort(semver_compare);
+        }
+
+        console.log("Selected Node: ", node);
+        console.log(from_versions);
+        console.log(to_versions);
+
+        if (node !== undefined) {
+            set_info("Version", node.label, from_versions, to_versions, node.data.errata);
+        } else {
+            set_info();
+        }
+    }
+
+    function set_streams(streams) {
+        let preselected = window.location.hash
+        if (!preselected) {
+            preselected = DEFAULT_STREAM;
+        } else {
+            preselected = preselected.substring(1);
+        }
+
+        let s = $("#streams");
+        s.empty();
+        streams.forEach(function(stream){
+            let opt = $("<option></option>")
+                .attr("value", stream)
+                .text(stream);
+            if (preselected === stream) {
+                opt.prop("selected", true);
+                load(stream);
+            }
+            s.append(opt);
+        });
+    }
+
+    // function get_latest_stable_stream() {
+    //     var regex = /stable/
+    //     $.ajax({
+    //         url: "/channels",
+    //         type: "GET",
+    //         success:
+    //     })
+    //         .done(function(data){
+    //             var streams = new Array()
+    //             for (i = 0; i < data.length; ++i) {
+    //               streams.push(data[i].name.replace(/\.[^/.]+$/, ""));
+    //             }
+    //             stable_releases = streams.filter(function(str) { return regex.test(str);});
+    //             stable_releases.sort();
+    //             latest_stable_stream = stable_releases[stable_releases.length - 1];
+    //             //load(latest_stable_stream);
+    //         })
+    //         .fail(function(r, e, ex){
+    //             failure("Failed to get streams: " + ex);
+    //         });
+    //     return latest_stable_stream;
+    // }
+
+    function update_streams() {
+        $.ajax({
+            url: "/channels",
+            type: "GET"
+        })
+            .done(function(data){
+                var streams = new Array()
+                for (i = 0; i < data.length; ++i) {
+                  streams.push(data[i].name.replace(/\.[^/.]+$/, ""));
+                }                
+                set_streams(streams);
+            })
+            .fail(function(r, e, ex){
+                failure("Failed to refresh streams: " + ex);
+            });
+    }
+
+    function set_info(type, value, from, to, errata) {
+        if(type === undefined || type === null || type === "") {
+            $("#info").show();
+            $("#info-type").text("Channel");
+            $("#info-value").text(current_channel);
+            $("#info-version-from-section").hide();
+            $("#info-version-to-section").hide();
+            $("#errata-link-section").hide();
+            return;
+        }
+
+        $("#info").show();
+        $("#info-type").text(type);
+        $("#info-value").text(value);
+
+        if(from !== undefined && from.length>0) {
+            let l = $("#info-version-from");
+            l.empty();
+            from.forEach(function(v){
+                l.append($("<li></li>").text(v));
+            });
+            $("#info-version-from-section").show();
+        } else {
+            $("#info-version-from-section").hide();
+        }
+
+        if(to !== undefined && to.length>0) {
+            let l = $("#info-version-to");
+            l.empty();
+            to.forEach(function(v){
+                l.append($("<li></li>").text(v));
+            });
+            $("#info-version-to-section").show();
+        } else {
+            $("#info-version-to-section").hide();
+        }
+
+        if(errata !== undefined && errata !== null && errata !== "") {
+            $("#errata-link").attr("href", errata);
+            $("#errata-link-section").show();
+        } else {
+            $("#errata-link-section").hide();
+        }
+    }
+
+    function load(stream) {
+
+        window.location.hash = "#" + stream;
+        $("#progress-bar").width("0%");
+        $("#progress").show();
+
+        current_channel = stream;
+        set_info();
+        let cincinnati_url = $("#graph-api").val();
+        $.ajax({
+            url: "/cincinnati/" + current_channel + "/" + cincinnati_url,
+            type: "GET",
+        })
+            .done(function(data){
+                try {
+
+                    let nodes = [];
+                    let edges = [];
+
+                    for (let i = 0; i < data.nodes.length; i++) {
+                        let node = data.nodes[i];
+                        nodes.push({
+                            id: "" + i,
+                            label: node.version,
+                            data: {
+                                errata: node.metadata.url,
+                            },
+                            color: {
+                                background: "#CCCCCC",
+                                border: "#BBBBBB",
+                            }
+                        });
+                    }
+
+                    for (let i = 0; i < data.edges.length; i++) {
+                        let path = data.edges[i];
+                        let from = "" + path[0]
+                        let to = "" + path[1];
+                        edges.push({
+                            from: from,
+                            to: to,
+                            id: from + "-" + to,
+                            arrows: {to: {enabled: true, scaleFactor: 0.5}},
+                            color: {color: "#DDDDDD"},
+                            chosen: {
+                                edge: function (values, id, selected, hovering) {
+                                    let node_id = network.getSelection().nodes[0];
+                                    if (id.startsWith(node_id + "-")) {
+                                        values.color = "#7bc084";
+                                    } else {
+                                        values.color = "#efdf29";
+                                        values.dashes = true;
+                                    }
+                                    values.width = 3;
+                                }
+                            }
+                        });
+                    }
+
+                    update_data(new vis.DataSet(nodes), new vis.DataSet(edges));
+                }
+                catch (e) {
+                    failure("Failed to process result: " + e)
+                }
+            })
+        .fail(function(r, e, ex){
+            failure("Failed to update graph: " + ex);
+            $("#progress").hide();
+        });
+
+    }
+
+    $("#streams").change(function(){
+        $("#streams option:selected").each(function(){
+            let s = $(this).attr("value");
+            load(s);
+        });
+    });
+    update_streams();
+
+    $("#api-button").button().click(function(){
+        let s = $("#streams option:selected").val();
+        load(s);
+    })
+
+</script>
+
+</body>
+</html>
