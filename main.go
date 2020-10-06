@@ -1,14 +1,15 @@
 package main
 
 import (
+	"crypto/tls"
+	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"io/ioutil"
 	"strings"
+
 	"github.com/gorilla/mux"
-	"crypto/tls"
-	"html/template"
 )
 
 var version = "v0.0.1"
@@ -25,8 +26,8 @@ func ReturnIndex(w http.ResponseWriter, r *http.Request) {
 
 // ReturnOpenShiftChannels gets the channel list from GitHub and returns it as json
 func ReturnOpenShiftChannels(w http.ResponseWriter, r *http.Request) {
-        tr := &http.Transport{
-        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{Transport: tr}
 	req, _ := http.NewRequest("GET", graphDataGitHubUrl, nil)
@@ -60,11 +61,11 @@ func ReturnCincinnatiOutput(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(cincinnatiApiUrl, "/") {
 		cincinnatiApiUrl = strings.TrimSuffix(cincinnatiApiUrl, "/")
 	}
-	cincinnatiUrl := "https://" + cincinnatiApiUrl  + "/api/upgrades_info/v1/graph?channel=" + cincinnatiChannel
+	cincinnatiUrl := "https://" + cincinnatiApiUrl + "/api/upgrades_info/v1/graph?channel=" + cincinnatiChannel
 
 	tr := &http.Transport{
-        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-    }
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 	client := &http.Client{Transport: tr}
 	req, _ := http.NewRequest("GET", cincinnatiUrl, nil)
 	req.Header.Add("Accept", "application/json")
@@ -99,11 +100,12 @@ func getEnv(varName, defaultValue string) string {
 
 func main() {
 	port := getEnv("APP_PORT", "8080")
+	ip := getEnv("IP", "127.0.0.1")
 	log.Println("Starting OpenShift Update Graph", version)
-	log.Println("Listening on port", port)
+	log.Println("Listening on", ip+":"+port)
 	router := mux.NewRouter()
 	router.HandleFunc("/", ReturnIndex).Methods("GET")
 	router.HandleFunc("/channels", ReturnOpenShiftChannels).Methods("GET")
 	router.HandleFunc("/cincinnati/{channel}/{api}", ReturnCincinnatiOutput).Methods("GET")
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	log.Fatal(http.ListenAndServe(ip+":"+port, router))
 }
