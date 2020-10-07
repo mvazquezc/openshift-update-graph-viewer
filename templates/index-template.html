@@ -389,31 +389,16 @@
                         // Get latest version from new array
                         latest_version = nodes_sorted[nodes_sorted.length - 1].version;
                     }
-                    for (let i = 0; i < data.nodes.length; i++) {
-                        let background_color = "#CCCCCC";
-                        let border_color = "#BBBBBB";
-                        
-                        if (data.nodes[i].version == latest_version) {
-                            background_color = "#99CCFF";
-                        }
-                        let node = data.nodes[i];
-                        nodes.push({
-                            id: "" + i,
-                            label: node.version,
-                            data: {
-                                errata: node.metadata.url,
-                            },
-                            color: {
-                                background: background_color,
-                                border: "#BBBBBB",
-                            }
-                        });
-                    }
+
+                    let from_set = new Set()
+                    let to_set = new Set()
 
                     for (let i = 0; i < data.edges.length; i++) {
                         let path = data.edges[i];
                         let from = "" + path[0]
                         let to = "" + path[1];
+                        from_set.add(from);
+                        to_set.add(to);
                         edges.push({
                             from: from,
                             to: to,
@@ -431,6 +416,30 @@
                                     }
                                     values.width = 3;
                                 }
+                            }
+                        });
+                    }
+
+                    for (let i = 0; i < data.nodes.length; i++) {
+                        let background_color = "#CCCCCC";
+                        let border_color = "#BBBBBB";
+
+                        node_id = "" + i;
+                        // node_id is not in any from and someone can update to it
+                        if (!from_set.has(node_id) && to_set.has(node_id)){
+                            background_color = "#99CCFF";
+                        }
+
+                        let node = data.nodes[i];
+                        nodes.push({
+                            id: "" + i,
+                            label: node.version,
+                            data: {
+                                errata: node.metadata.url,
+                            },
+                            color: {
+                                background: background_color,
+                                border: "#BBBBBB",
                             }
                         });
                     }
