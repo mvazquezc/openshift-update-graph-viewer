@@ -117,7 +117,7 @@
 
 <script type="text/javascript">
 
-    const DEFAULT_STREAM = "stable-4.5";
+    const DEFAULT_STREAM = get_latest_stable_stream();
     const OPENSHIFT_CLI_PUB_MIRROR = "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/";
     let network;
     let network_data;
@@ -258,28 +258,28 @@
         });
     }
 
-    // function get_latest_stable_stream() {
-    //     var regex = /stable/
-    //     $.ajax({
-    //         url: "/channels",
-    //         type: "GET",
-    //         success:
-    //     })
-    //         .done(function(data){
-    //             var streams = new Array()
-    //             for (i = 0; i < data.length; ++i) {
-    //               streams.push(data[i].name.replace(/\.[^/.]+$/, ""));
-    //             }
-    //             stable_releases = streams.filter(function(str) { return regex.test(str);});
-    //             stable_releases.sort();
-    //             latest_stable_stream = stable_releases[stable_releases.length - 1];
-    //             //load(latest_stable_stream);
-    //         })
-    //         .fail(function(r, e, ex){
-    //             failure("Failed to get streams: " + ex);
-    //         });
-    //     return latest_stable_stream;
-    // }
+    function get_latest_stable_stream() {
+         var regex = /stable/;
+         var latest_stable_stream = "stable-4.5";
+         $.ajax({
+             url: "/channels",
+             type: "GET"
+         })
+             .done(function(data){
+                 var streams = new Array()
+                 for (i = 0; i < data.length; ++i) {
+                   streams.push(data[i].name.replace(/\.[^/.]+$/, ""));
+                 }
+                 stable_releases = streams.filter(function(str) { return regex.test(str);});
+                 stable_releases.sort();
+                 latest_stable_stream = stable_releases[stable_releases.length - 1];
+                 load(latest_stable_stream);
+             })
+             .fail(function(r, e, ex){
+                 failure("Failed to get streams: " + ex);
+             });
+         return latest_stable_stream;
+     }
 
     function update_streams() {
         $.ajax({
@@ -469,7 +469,7 @@
         let s = $("#streams option:selected").val();
         load(s);
     })
-
+    
 </script>
 
 </body>
