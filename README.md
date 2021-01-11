@@ -2,7 +2,7 @@
 
 This repository is based on the work made by @ctron in https://github.com/ctron/openshift-update-graph.
 
-On top of his work this reposiroty adds a proxy to get OpenShift update channels from GitHub and adds the posibility to get the update graph directly from a public/self-managed Cincinnati instance.
+On top of his work, this repository adds a proxy to get OpenShift update channels from GitHub and adds the posibility to get the update graph directly from a public/self-managed Cincinnati instance.
 
 ## How to use it
 
